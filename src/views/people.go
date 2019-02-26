@@ -2,47 +2,67 @@ package Views
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+
+	db "../Database"
 
 	"github.com/gorilla/mux"
 )
 
-func registerPeopleUrl(r *mux.Router) {
+func RegisterPeopleView(r *mux.Router) {
 	r.HandleFunc("/people", GetPeople).Methods("GET")
 	r.HandleFunc("/people/{id}", GetPerson).Methods("GET")
-	r.HandleFunc("/people/{id}", CreatePerson).Methods("POST")
+	r.HandleFunc("/people", CreatePerson).Methods("POST")
 	r.HandleFunc("/people/{id}", DeletePerson).Methods("DELETE")
 }
 
-func GetPeople(response http.ResponseWriter, request *http.Request) {
-	json.NewEncoder(response).Encode(people)
+func GetPeople(w http.ResponseWriter, r *http.Request) {
+	people := db.GetPeople()
+	json.NewEncoder(w).Encode(people)
 }
 
-func GetPerson(response http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	for _, item := range people {
-		if item.ID == params["id"] {
-			_ = json.NewEncoder(response).Encode(item)
-			break
+func GetPerson(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	id, err := strconv.Atoi(params["id"])
+	if err != nil {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
 		}
+	}
+	person, err := db.GetPerson(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	err = json.NewEncoder(w).Encode(person)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
-func CreatePerson(response http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	var person Person
-	_ = json.NewDecoder(request.Body).Decode(&person)
-	person.ID = params["id"]
-	people = append(people, person)
-	json.NewEncoder(response).Encode(people)
+func CreatePerson(w http.ResponseWriter, r *http.Request) {
+	var person db.Person
+	err := json.NewDecoder(r.Body).Decode(&person)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Println(person, r.Body)
+	person = *db.CreatePerson(&person)
+	json.NewEncoder(w).Encode(person)
 }
 
-func DeletePerson(response http.ResponseWriter, request *http.Request) {
-	params := mux.Vars(request)
-	for index, item := range people {
-		if item.ID == params["id"] {
-			people = append(people[:index], people[index+1]...)
-			break
-		}
+func DeletePerson(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	id, err := strconv.Atoi(params["id"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
 	}
+	_ = db.DeletePerson(id)
+	w.WriteHeader(204)
 }
